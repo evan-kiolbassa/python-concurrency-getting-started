@@ -24,18 +24,25 @@ class ThumbnailMakerService(object):
         self.downloaded_bytes = 0
         self.dl_lock = threading.Lock() # Locks threading resources to avoid threading interference
         # Also referred to as Thread Synchronization
-
+        max_concurrent_dl = 4 # A limitation on the amount of concurrent downloads that can happen at one time
+        self.dl_sem = threading.Semaphore(max_concurrent_dl) # Semaphore threading for concurrent downloading limitation
+        
     def download_image(self, url):
         # download each image and save to the input dir 
-        logging.info('Downloading image at URL ' + url)
-        img_filename = urlparse(url).path.split('/')[-1]
-        urlretrieve(url, self.input_dir + os.path.sep + img_filename)
-        # Counting the amount of bytes of downloaded images
-        dest_path = self.input_dir + os.path.sep + img_filename
-        img_size = os.path.getsize(dest_path)
-        with self.dl_lock: # with statement guarantees that an exception will not keep resources locked
-            self.downloaded_bytes += img_size
-        logging.info('Image [{} bytes] saved to '.format(img_size, dest_path))
+        self.dl_sem.acquire()
+        # Exception handling to prevent infinite locking of resources
+        try:
+            logging.info('Downloading image at URL ' + url)
+            img_filename = urlparse(url).path.split('/')[-1]
+            urlretrieve(url, self.input_dir + os.path.sep + img_filename)
+            # Counting the amount of bytes of downloaded images
+            dest_path = self.input_dir + os.path.sep + img_filename
+            img_size = os.path.getsize(dest_path)
+            with self.dl_lock: # with statement guarantees that an exception will not keep resources locked
+                self.downloaded_bytes += img_size
+            logging.info('Image [{} bytes] saved to '.format(img_size, dest_path))
+        finally:
+            self.dl_sem.release()
 
     def download_images(self, img_url_list):
         # validate inputs

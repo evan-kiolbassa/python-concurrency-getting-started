@@ -21,13 +21,22 @@ class ThumbnailMakerService(object):
         self.home_dir = home_dir
         self.input_dir = self.home_dir + os.path.sep + 'incoming' # Directory where image files are loaded from
         self.output_dir = self.home_dir + os.path.sep + 'outgoing' # Directory where resized images are placed
+        self.downloaded_bytes = 0
+        self.dl_lock = threading.Lock() # Locks threading resources to avoid threading interference
+        # Also referred to as Thread Synchronization
 
     def download_image(self, url):
         # download each image and save to the input dir 
         logging.info('Downloading image at URL ' + url)
         img_filename = urlparse(url).path.split('/')[-1]
         urlretrieve(url, self.input_dir + os.path.sep + img_filename)
-        logging.info('Image saved to ' + self.input_dir + os.path.sep + img_filename)
+        # Counting the amount of bytes of downloaded images
+        dest_path = self.input_dir + os.path.sep + img_filename
+        img_size = os.path.getsize(dest_path)
+        with self.dl_lock: # with statement guarantees that an exception will not keep resources locked
+            self.downloaded_bytes += img_size
+        logging.info('Image [{} bytes] saved to '.format(img_size, dest_path))
+
     def download_images(self, img_url_list):
         # validate inputs
         if not img_url_list:
